@@ -284,13 +284,11 @@ fun DashboardTab(
         val simPVal = if (hasRain) (1.2f + (Math.abs(hash) % 7).toFloat() * 0.8f) else 0.0f
         val simTVal = if (isHot) 34f else (23f + (Math.abs(hash) % 6).toFloat())
 
-        weatherTemp = "${simTVal.toInt()}°C"
-        weatherHumidity = if (hasRain) "82%" else "58%"
-        weatherPrecip = "${String.format("%.1f", simPVal)} mm/h"
-        weatherDesc = if (hasRain) "Light Rain Showers" else "Scattered Clouds"
-        weatherPrecipVal = simPVal
-
-        weatherAdvice = if (simPVal > 5.0f) {
+        val tempText = "${simTVal.toInt()}°C"
+        val humidityText = if (hasRain) "82%" else "58%"
+        val precipText = "${String.format("%.1f", simPVal)} mm/h"
+        val descText = if (hasRain) "Light Rain Showers" else "Scattered Clouds"
+        val adviceText = if (simPVal > 5.0f) {
           "🌧️ CRITICAL ADVICE: Heavy Precipitation Detected ($simPVal mm/h). DO NOT water plants today. Nature has supplied extensive root moisture. Waterlogging causes hypoxia."
         } else if (simPVal > 0.5f) {
           "🌦️ MODERATE ADVICE: Light Showers ($simPVal mm/h). Reduce standard watering by 50%. Postpone ongoing irrigation cycles."
@@ -299,8 +297,17 @@ fun DashboardTab(
         } else {
           "🟢 STANDARD ADVICE: Climate conditions stable. Proceed with standard recommended irrigation (240ml Ficus Luna)."
         }
-        weatherSource = "⚠️ Simulated Node"
-        isWeatherLoading = false
+
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+          weatherTemp = tempText
+          weatherHumidity = humidityText
+          weatherPrecip = precipText
+          weatherDesc = descText
+          weatherPrecipVal = simPVal
+          weatherAdvice = adviceText
+          weatherSource = "⚠️ Simulated Node"
+          isWeatherLoading = false
+        }
         return@launch
       }
 
@@ -328,13 +335,11 @@ fun DashboardTab(
                 precipVal = if (snow.has("1h")) snow.getDouble("1h").toFloat() else if (snow.has("3h")) snow.getDouble("3h").toFloat() else 0.0f
               }
 
-              weatherTemp = "${tempVal.toInt()}°C"
-              weatherHumidity = "$humVal%"
-              weatherPrecip = "${String.format("%.1f", precipVal)} mm/h"
-              weatherDesc = descVal
-              weatherPrecipVal = precipVal
-
-              weatherAdvice = if (precipVal > 5.0f) {
+              val tempText = "${tempVal.toInt()}°C"
+              val humidityText = "$humVal%"
+              val precipText = "${String.format("%.1f", precipVal)} mm/h"
+              val descText = descVal
+              val adviceText = if (precipVal > 5.0f) {
                 "🌧️ CRITICAL ADVICE: Heavy Local Rain Detected ($precipVal mm/h). DO NOT water today. Root hypoxia danger."
               } else if (precipVal > 0.5f) {
                 "🌦️ MODERATE ADVICE: Light Showers ($precipVal mm/h). Reduce active irrigation by 50%. Topsoil remains damp."
@@ -343,18 +348,33 @@ fun DashboardTab(
               } else {
                 "🟢 STANDARD ADVICE: Ambient weather stable. Maintain standard scheduled waterings (240ml Ficus Luna)."
               }
-              weatherSource = "🟢 Live API Node"
+
+              kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                weatherTemp = tempText
+                weatherHumidity = humidityText
+                weatherPrecip = precipText
+                weatherDesc = descText
+                weatherPrecipVal = precipVal
+                weatherAdvice = adviceText
+                weatherSource = "🟢 Live API Node"
+              }
             }
           } else {
-            weatherAdvice = "❌ API Error: Status ${response.code} (e.g. invalid city or bad API Key)."
-            weatherSource = "❌ API Error"
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+              weatherAdvice = "❌ API Error: Status ${response.code} (e.g. invalid city or bad API Key)."
+              weatherSource = "❌ API Error"
+            }
           }
         }
       } catch (e: Exception) {
-        weatherAdvice = "⚠️ Connection error: ${e.localizedMessage}. Serving mock parameters."
-        weatherSource = "⚠️ Connection Error"
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+          weatherAdvice = "⚠️ Connection error: ${e.localizedMessage}. Serving mock parameters."
+          weatherSource = "⚠️ Connection Error"
+        }
       } finally {
-        isWeatherLoading = false
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+          isWeatherLoading = false
+        }
       }
     }
   }
