@@ -110,7 +110,7 @@ fun MainScreen() {
       CustomBottomNavBar(selectedTab = selectedTab, onTabSelected = { selectedTab = it })
     },
     containerColor = EcoBg,
-    modifier = Modifier.fillMaxSize().navigationBarsPadding()
+    modifier = Modifier.fillMaxSize()
   ) { paddingValues ->
     Column(
       modifier = Modifier
@@ -1573,50 +1573,54 @@ fun CustomBottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
   Card(
     modifier = Modifier
       .fillMaxWidth()
-      .height(68.dp)
       .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
     colors = CardDefaults.cardColors(containerColor = GlassBg),
     border = BorderStroke(1.dp, GlassBorder)
   ) {
-    Row(
-      modifier = Modifier.fillMaxSize(),
-      horizontalArrangement = Arrangement.SpaceAround,
-      verticalAlignment = Alignment.CenterVertically
-    ) {
-      NavBarItem(
-        icon = Icons.Rounded.Eco,
-        label = "Dashboard",
-        active = selectedTab == 0,
-        onClick = { onTabSelected(0) }
-      )
-      NavBarItem(
-        icon = Icons.Rounded.Settings,
-        label = "Recommend",
-        active = selectedTab == 1,
-        onClick = { onTabSelected(1) }
-      )
-      Box(
+    Column(modifier = Modifier.fillMaxWidth()) {
+      Row(
         modifier = Modifier
-          .size(46.dp)
-          .clip(CircleShape)
-          .background(EcoPrimaryColor)
-          .clickable { onTabSelected(2) },
-        contentAlignment = Alignment.Center
+          .fillMaxWidth()
+          .height(68.dp),
+        horizontalArrangement = Arrangement.SpaceAround,
+        verticalAlignment = Alignment.CenterVertically
       ) {
-        Icon(Icons.Rounded.Add, contentDescription = "Lab Center", tint = Color.Black, modifier = Modifier.size(24.dp))
+        NavBarItem(
+          icon = Icons.Rounded.Eco,
+          label = "Dashboard",
+          active = selectedTab == 0,
+          onClick = { onTabSelected(0) }
+        )
+        NavBarItem(
+          icon = Icons.Rounded.Settings,
+          label = "Recommend",
+          active = selectedTab == 1,
+          onClick = { onTabSelected(1) }
+        )
+        Box(
+          modifier = Modifier
+            .size(46.dp)
+            .clip(CircleShape)
+            .background(EcoPrimaryColor)
+            .clickable { onTabSelected(2) },
+          contentAlignment = Alignment.Center
+        ) {
+          Icon(Icons.Rounded.Add, contentDescription = "Lab Center", tint = Color.Black, modifier = Modifier.size(24.dp))
+        }
+        NavBarItem(
+          icon = Icons.Rounded.Analytics,
+          label = "Scanner",
+          active = selectedTab == 3,
+          onClick = { onTabSelected(3) }
+        )
+        NavBarItem(
+          icon = Icons.Rounded.Chat,
+          label = "Voice Bot",
+          active = selectedTab == 4,
+          onClick = { onTabSelected(4) }
+        )
       }
-      NavBarItem(
-        icon = Icons.Rounded.Analytics,
-        label = "Scanner",
-        active = selectedTab == 3,
-        onClick = { onTabSelected(3) }
-      )
-      NavBarItem(
-        icon = Icons.Rounded.Chat,
-        label = "Voice Bot",
-        active = selectedTab == 4,
-        onClick = { onTabSelected(4) }
-      )
+      Spacer(modifier = Modifier.navigationBarsPadding())
     }
   }
 }
