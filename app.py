@@ -186,7 +186,7 @@ def query_prakirtimitra_ai(prompt):
         }
     }
     
-    try {
+    try:
         response = requests.post(url, headers=headers, data=json.dumps(payload), timeout=15)
         if response.status_code == 200:
             res_json = response.json()
@@ -227,6 +227,70 @@ def query_prakirtimitra_offline(prompt):
             "🌱 **Prakirtimitra Expert Guidance:**\n"
             "Use organic compost to richify the soil, supply 3-4 hours of indirect sunlight daily, and keep ventilation high. Let me know if you need specific guides in Telugu (తెలుగు), Hindi (हिन्दी), or Tamil (தமிழ்)!"
         )
+
+# OpenWeather API integration helper
+def fetch_weather_api(city_name):
+    # Retrieve the API key securely from environment variables
+    api_key = os.getenv("OPENWEATHER_API_KEY")
+    if not api_key or api_key == "your_openweather_api_key_here":
+        # Realistic fallback simulation with gentle variations to match typical tropical/subcontinental climates
+        random.seed(city_name)
+        sim_temp = round(random.uniform(22.0, 36.0), 1)
+        sim_humidity = random.randint(45, 85)
+        # Randomly simulate rainy status for mock showcase transitions based on seed
+        has_rain = (hash(city_name) % 3 == 0)
+        sim_precip = round(random.uniform(1.2, 8.5), 1) if has_rain else 0.0
+        sim_desc = "light rain showers" if has_rain else "scattered clouds"
+        return {
+            "city": city_name.strip().title(),
+            "temp": sim_temp,
+            "humidity": sim_humidity,
+            "description": sim_desc,
+            "precipitation": sim_precip,
+            "is_mock": True
+        }
+    
+    url = f"https://api.openweathermap.org/data/2.5/weather?q={city_name.strip()}&appid={api_key}&units=metric"
+    try:
+        res = requests.get(url, timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            # OpenWeather reports rain under rain.1h or rain.3h
+            precip = 0.0
+            if "rain" in data:
+                precip = data["rain"].get("1h", data["rain"].get("3h", 0.0))
+            elif "snow" in data:
+                precip = data["snow"].get("1h", data["snow"].get("3h", 0.0))
+            
+            return {
+                "city": data.get("name", city_name.strip().title()),
+                "temp": data["main"]["temp"],
+                "humidity": data["main"]["humidity"],
+                "description": data["weather"][0]["description"],
+                "precipitation": precip,
+                "is_mock": False
+            }
+        else:
+            # Graceful error matching
+            return {
+                "city": city_name.strip().title(),
+                "temp": 28.0,
+                "humidity": 60,
+                "description": f"unfavorable conditions (API Status: {res.status_code})",
+                "precipitation": 0.0,
+                "is_mock": True,
+                "error": f"API Error {res.status_code}"
+            }
+    except Exception as e:
+        return {
+            "city": city_name.strip().title(),
+            "temp": 27.5,
+            "humidity": 55,
+            "description": "gale clouds (Connection timeout)",
+            "precipitation": 0.0,
+            "is_mock": True,
+            "error": str(e)
+        }
 
 # App Data Setup
 CROP_DATA = {
@@ -430,6 +494,77 @@ if st.session_state.current_page == "Dashboard":
                 <p style="color: #CBD5E0; font-size: 0.85rem; margin: 3px 0 0 0;">
                     "In India, direct solar heat at {crop_details["temp"]} requires slight indirect canopy shade during 12pm-3pm to prevent margin scorching."
                 </p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # 2. REAL-TIME WEATHER & WATERING RECOMMENDATION (OpenWeather API)
+    st.markdown("### 🌦️ Local Real-time Weather & AI Watering Advisor")
+    col_w_input, col_w_details = st.columns([1, 1.8])
+    with col_w_input:
+        st.markdown('<div class="glass-card" style="padding: 20px !important;">', unsafe_allow_html=True)
+        city_name = st.text_input("📍 Current City Location:", value="Bangalore")
+        fetch_clicked = st.button("Query OpenWeather Node 🚀")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    with col_w_details:
+        # Fetch weather data dynamically
+        weather = fetch_weather_api(city_name)
+        
+        # Analyze parameters to formulate precision advice
+        p_lvl = weather.get("precipitation", 0.0)
+        t_lvl = weather.get("temp", 26.0)
+        h_lvl = weather.get("humidity", 55)
+        desc = weather.get("description", "clear sky")
+        
+        if p_lvl > 5.0:
+            advice = "🌧️ **CRITICAL ADVICE: Heavy Local Precipitation Detected ({:.1f} mm/h).** DO NOT water your plants today. Your garden soil has received optimal rainfall. Waterlogging blocks oxygen to the root structure."
+            advice_color = "#EF4444"  # Red theme for heavy rain halt
+            badge_class = "badge-red"
+        elif p_lvl > 0.5:
+            advice = "🌦️ **MODERATE ADVICE: Light Showers Detected ({:.1f} mm/h).** Automated watering quantity should be adjusted by **-50%**. Topsoil capillary moisture remains high. Postpone scheduled irrigation cycles by 12-24 hours."
+            advice_color = "#F59E0B"  # Yellow/Amber theme for adjustment
+            badge_class = "badge-amber"
+        elif t_lvl > 32.0:
+            advice = "🔥 **ADVISORY: Scorching Climate / Heat Wave ({:.1f}°C).** No precipitation registered. Automated advice: Increase standard irrigation quantity by **+25%** to offset high transpiration rates and maintain root hydration."
+            advice_color = "#38BDF8"  # Blue theme to counter high heat
+            badge_class = "badge-amber"
+        else:
+            advice = "🟢 **STANDARD ADVICE: Normal Local Weather Conditions ({:.1f}°C).** Continue with standard recommended plantation schedules (e.g. 240ml for Ficus Lyrata, or direct soil moisture probe instructions)."
+            advice_color = "#10B981"  # Pure Emerald for normal
+            badge_class = "badge-green"
+            
+        weather_source = "🟢 Live Web API Node" if not weather.get("is_mock", True) else "⚠️ Fallback Simulated Node (API Key not set)"
+        
+        st.markdown(f"""
+        <div class="glass-card" style="border-left: 5px solid {advice_color} !important; padding: 22px !important;">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                <h4 style="margin: 0; color: #FFFFFF !important;">{weather['city']} Weather Telemetry</h4>
+                <span class="badge-capsule {badge_class}" style="margin: 0;">{weather_source}</span>
+            </div>
+            
+            <div style="display: flex; justify-content: space-around; background: rgba(255,255,255,0.02); padding: 10px; border-radius: 12px; margin-bottom: 15px;">
+                <div style="text-align: center;">
+                    <span style="font-size: 0.75rem; color: #94A3B8;">Temperature</span>
+                    <p style="margin: 3px 0 0 0; font-size: 1.15rem; font-weight: 700; color: #FFFFFF;">{t_lvl:.1f}°C</p>
+                </div>
+                <div style="text-align: center;">
+                    <span style="font-size: 0.75rem; color: #94A3B8;">Humidity</span>
+                    <p style="margin: 3px 0 0 0; font-size: 1.15rem; font-weight: 700; color: #FFFFFF;">{h_lvl}%</p>
+                </div>
+                <div style="text-align: center;">
+                    <span style="font-size: 0.75rem; color: #94A3B8;">Precipitation</span>
+                    <p style="margin: 3px 0 0 0; font-size: 1.15rem; font-weight: 700; color: #34D399;">{p_lvl:.1f} mm/h</p>
+                </div>
+                <div style="text-align: center;">
+                    <span style="font-size: 0.75rem; color: #94A3B8;">Condition</span>
+                    <p style="margin: 3px 0 0 0; font-size: 0.9rem; font-weight: 700; color: #A7F3D0; text-transform: capitalize;">{desc}</p>
+                </div>
+            </div>
+            
+            <div style="background: rgba(255, 255, 255, 0.04); padding: 14px; border-radius: 12px;">
+                <span style="font-size: 0.75rem; font-weight: 700; color: #34D399; letter-spacing: 0.05em; text-transform: uppercase;">🤖 AI Precision Irrigation Advice:</span>
+                <p style="margin: 6px 0 0 0; color: #F1F5F9; font-size: 0.95rem; line-height: 1.5;">{advice.format(p_lvl if 'Precipitation' in advice or 'Showers' in advice else t_lvl)}</p>
             </div>
         </div>
         """, unsafe_allow_html=True)

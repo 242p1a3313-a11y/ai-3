@@ -254,6 +254,115 @@ fun DashboardTab(
   onNavigateToChat: () -> Unit,
   onCheckIn: () -> Unit
 ) {
+  var cityInput by remember { mutableStateOf("Bangalore") }
+  var weatherTemp by remember { mutableStateOf("26°C") }
+  var weatherHumidity by remember { mutableStateOf("60%") }
+  var weatherPrecip by remember { mutableStateOf("0.0 mm/h") }
+  var weatherDesc by remember { mutableStateOf("Scattered Clouds") }
+  var weatherAdvice by remember { mutableStateOf("🟢 STANDARD ADVICE: Climate conditions stable. Proceed with standard recommended irrigation (240ml Ficus Luna).") }
+  var weatherSource by remember { mutableStateOf("⚠️ Simulation (Key not set)") }
+  var isWeatherLoading by remember { mutableStateOf(false) }
+  var weatherPrecipVal by remember { mutableStateOf(0.0f) }
+
+  val scope = rememberCoroutineScope()
+
+  fun queryWeather(city: String) {
+    isWeatherLoading = true
+    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+      val apiKey = try {
+        BuildConfig.OPENWEATHER_API_KEY
+      } catch (e: Exception) {
+        ""
+      }
+
+      if (apiKey.isEmpty() || apiKey == "your_openweather_api_key_here" || apiKey == "OPENWEATHER_API_KEY") {
+        // Safe simulation fallback logic
+        kotlinx.coroutines.delay(800)
+        val hash = city.lowercase().trim().hashCode()
+        val hasRain = hash % 3 == 0
+        val isHot = hash % 5 == 0
+        val simPVal = if (hasRain) (1.2f + (Math.abs(hash) % 7).toFloat() * 0.8f) else 0.0f
+        val simTVal = if (isHot) 34f else (23f + (Math.abs(hash) % 6).toFloat())
+
+        weatherTemp = "${simTVal.toInt()}°C"
+        weatherHumidity = if (hasRain) "82%" else "58%"
+        weatherPrecip = "${String.format("%.1f", simPVal)} mm/h"
+        weatherDesc = if (hasRain) "Light Rain Showers" else "Scattered Clouds"
+        weatherPrecipVal = simPVal
+
+        weatherAdvice = if (simPVal > 5.0f) {
+          "🌧️ CRITICAL ADVICE: Heavy Precipitation Detected ($simPVal mm/h). DO NOT water plants today. Nature has supplied extensive root moisture. Waterlogging causes hypoxia."
+        } else if (simPVal > 0.5f) {
+          "🌦️ MODERATE ADVICE: Light Showers ($simPVal mm/h). Reduce standard watering by 50%. Postpone ongoing irrigation cycles."
+        } else if (simTVal > 32f) {
+          "🔥 ADVISORY: Scorch Temperature (${simTVal.toInt()}°C). Increase standard irrigation by 25% to support soil hydration against high transpiration rates."
+        } else {
+          "🟢 STANDARD ADVICE: Climate conditions stable. Proceed with standard recommended irrigation (240ml Ficus Luna)."
+        }
+        weatherSource = "⚠️ Simulated Node"
+        isWeatherLoading = false
+        return@launch
+      }
+
+      val url = "https://api.openweathermap.org/data/2.5/weather?q=${city.trim()}&appid=$apiKey&units=metric"
+      val client = okhttp3.OkHttpClient()
+      val request = okhttp3.Request.Builder().url(url).build()
+      try {
+        client.newCall(request).execute().use { response ->
+          if (response.isSuccessful) {
+            val body = response.body?.string()
+            if (body != null) {
+              val json = org.json.JSONObject(body)
+              val main = json.getJSONObject("main")
+              val tempVal = main.getDouble("temp").toFloat()
+              val humVal = main.getInt("humidity")
+              val weatherArray = json.getJSONArray("weather")
+              val descVal = if (weatherArray.length() > 0) weatherArray.getJSONObject(0).getString("description") else "clear sky"
+
+              var precipVal = 0.0f
+              if (json.has("rain")) {
+                val rain = json.getJSONObject("rain")
+                precipVal = if (rain.has("1h")) rain.getDouble("1h").toFloat() else if (rain.has("3h")) rain.getDouble("3h").toFloat() else 0.0f
+              } else if (json.has("snow")) {
+                val snow = json.getJSONObject("snow")
+                precipVal = if (snow.has("1h")) snow.getDouble("1h").toFloat() else if (snow.has("3h")) snow.getDouble("3h").toFloat() else 0.0f
+              }
+
+              weatherTemp = "${tempVal.toInt()}°C"
+              weatherHumidity = "$humVal%"
+              weatherPrecip = "${String.format("%.1f", precipVal)} mm/h"
+              weatherDesc = descVal
+              weatherPrecipVal = precipVal
+
+              weatherAdvice = if (precipVal > 5.0f) {
+                "🌧️ CRITICAL ADVICE: Heavy Local Rain Detected ($precipVal mm/h). DO NOT water today. Root hypoxia danger."
+              } else if (precipVal > 0.5f) {
+                "🌦️ MODERATE ADVICE: Light Showers ($precipVal mm/h). Reduce active irrigation by 50%. Topsoil remains damp."
+              } else if (tempVal > 32.0f) {
+                "🔥 ADVISORY: Scorch Temperature (${tempVal.toInt()}°C). Increase standard irrigation by 25% to preserve leaf density."
+              } else {
+                "🟢 STANDARD ADVICE: Ambient weather stable. Maintain standard scheduled waterings (240ml Ficus Luna)."
+              }
+              weatherSource = "🟢 Live API Node"
+            }
+          } else {
+            weatherAdvice = "❌ API Error: Status ${response.code} (e.g. invalid city or bad API Key)."
+            weatherSource = "❌ API Error"
+          }
+        }
+      } catch (e: Exception) {
+        weatherAdvice = "⚠️ Connection error: ${e.localizedMessage}. Serving mock parameters."
+        weatherSource = "⚠️ Connection Error"
+      } finally {
+        isWeatherLoading = false
+      }
+    }
+  }
+
+  LaunchedEffect(Unit) {
+    queryWeather("Bangalore")
+  }
+
   val infiniteTransition = rememberInfiniteTransition(label = "Pulse")
   val pulseScale by infiniteTransition.animateFloat(
     initialValue = 0.96f,
@@ -421,6 +530,153 @@ fun DashboardTab(
               lineHeight = 16.sp,
               modifier = Modifier.padding(top = 2.dp)
             )
+          }
+        }
+      }
+    }
+
+    // 3.5. Real-time Weather & AI Watering Recommendation Card
+    item {
+      ImmersiveGlassCard {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              Icon(
+                imageVector = Icons.Rounded.WbSunny,
+                contentDescription = "Weather Icon",
+                tint = EcoSecondaryColor,
+                modifier = Modifier.size(20.dp)
+              )
+              Text(
+                text = "Weather & AI Watering Advisor",
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = Color.White
+              )
+            }
+            Box(
+              modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (weatherSource.startsWith("🟢")) Color(0x1422C55E) else Color(0x14FBBF24))
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+              Text(
+                text = weatherSource,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (weatherSource.startsWith("🟢")) EcoSecondaryColor else Color(0xFFFBBF24)
+              )
+            }
+          }
+
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            OutlinedTextField(
+              value = cityInput,
+              onValueChange = { cityInput = it },
+              label = { Text("Query City Location") },
+              colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                focusedBorderColor = EcoPrimaryColor,
+                unfocusedBorderColor = GlassBorder,
+                focusedLabelColor = EcoPrimaryColor,
+                unfocusedLabelColor = EcoMutedColor
+              ),
+              modifier = Modifier.weight(1.2f).height(56.dp)
+            )
+
+            Button(
+              onClick = { queryWeather(cityInput) },
+              colors = ButtonDefaults.buttonColors(containerColor = EcoPrimaryColor),
+              shape = RoundedCornerShape(12.dp),
+              modifier = Modifier.weight(1f).height(50.dp)
+            ) {
+              if (isWeatherLoading) {
+                CircularProgressIndicator(color = Color.Black, modifier = Modifier.size(20.dp))
+              } else {
+                Text(
+                  text = "Fetch Weather", 
+                  color = Color.Black, 
+                  fontWeight = FontWeight.Bold, 
+                  fontSize = 11.sp,
+                  textAlign = TextAlign.Center
+                )
+              }
+            }
+          }
+
+          // Weather Grid Panel (Temp, Humidity, Precipitation, Condition)
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clip(RoundedCornerShape(16.dp))
+              .background(Color(0x08FFFFFF))
+              .padding(10.dp),
+            horizontalArrangement = Arrangement.SpaceAround
+          ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+              Text("Temperature", fontSize = 9.sp, color = EcoMutedColor)
+              Text(weatherTemp, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(top = 2.dp))
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+              Text("Humidity", fontSize = 9.sp, color = EcoMutedColor)
+              Text(weatherHumidity, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(top = 2.dp))
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+              Text("Precipitation", fontSize = 9.sp, color = EcoMutedColor)
+              Text(weatherPrecip, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = EcoSecondaryColor, modifier = Modifier.padding(top = 2.dp))
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1.2f)) {
+              Text("Condition", fontSize = 9.sp, color = EcoMutedColor)
+              Text(
+                text = weatherDesc, 
+                fontSize = 12.sp, 
+                fontWeight = FontWeight.Bold, 
+                color = Color(0xFFA7F3D0), 
+                modifier = Modifier.padding(top = 2.dp),
+                maxLines = 1,
+                textAlign = TextAlign.Center
+              )
+            }
+          }
+
+          // Custom styled AI Recommendation Block
+          Box(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clip(RoundedCornerShape(16.dp))
+              .background(Color(0x0DFFFFFF))
+              .border(
+                1.dp, 
+                if (weatherPrecipVal > 3.0f) Color(0x33EF4444) else if (weatherPrecipVal > 0.0f) Color(0x33FBBF24) else Color(0x1AFFFFFF), 
+                RoundedCornerShape(16.dp)
+              )
+              .padding(12.dp)
+          ) {
+            Column {
+              Text(
+                text = "🤖 AI Precision Irrigation Recommendation:",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = EcoSecondaryColor,
+                letterSpacing = 0.05.sp
+              )
+              Text(
+                text = weatherAdvice,
+                fontSize = 11.sp,
+                color = Color(0xFFF1F5F9),
+                lineHeight = 15.sp,
+                modifier = Modifier.padding(top = 4.dp)
+              )
+            }
           }
         }
       }
