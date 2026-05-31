@@ -125,7 +125,7 @@ fun MainScreen() {
       AnimatedContent(
         targetState = selectedTab,
         transitionSpec = {
-          fadeIn(animationSpec = tween(220)) with fadeOut(animationSpec = tween(220))
+          fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(220))
         },
         modifier = Modifier.weight(1f)
       ) { targetTab ->
@@ -311,10 +311,11 @@ fun DashboardTab(
         return@launch
       }
 
-      val url = "https://api.openweathermap.org/data/2.5/weather?q=${city.trim()}&appid=$apiKey&units=metric"
-      val client = okhttp3.OkHttpClient()
-      val request = okhttp3.Request.Builder().url(url).build()
       try {
+        val encodedCity = java.net.URLEncoder.encode(city.trim(), "UTF-8")
+        val url = "https://api.openweathermap.org/data/2.5/weather?q=$encodedCity&appid=$apiKey&units=metric"
+        val client = okhttp3.OkHttpClient()
+        val request = okhttp3.Request.Builder().url(url).build()
         client.newCall(request).execute().use { response ->
           if (response.isSuccessful) {
             val body = response.body?.string()
@@ -614,7 +615,8 @@ fun DashboardTab(
             )
 
             Button(
-              onClick = { queryWeather(cityInput) },
+              onClick = { if (!isWeatherLoading) queryWeather(cityInput) },
+              enabled = !isWeatherLoading,
               colors = ButtonDefaults.buttonColors(containerColor = EcoPrimaryColor),
               shape = RoundedCornerShape(12.dp),
               modifier = Modifier.weight(1f).height(50.dp)
@@ -933,14 +935,17 @@ fun PlantRecommendationTab(onRecommended: () -> Unit) {
         Spacer(modifier = Modifier.height(10.dp))
         Button(
           onClick = {
-            scope.launch {
-              loadingState = true
-              delay(1000)
-              listRecs = mockRecsMap[selectedCategory] ?: emptyList()
-              loadingState = false
-              onRecommended()
+            if (!loadingState) {
+              scope.launch {
+                loadingState = true
+                delay(1000)
+                listRecs = mockRecsMap[selectedCategory] ?: emptyList()
+                loadingState = false
+                onRecommended()
+              }
             }
           },
+          enabled = !loadingState,
           colors = ButtonDefaults.buttonColors(containerColor = EcoPrimaryColor),
           shape = RoundedCornerShape(12.dp),
           modifier = Modifier.fillMaxWidth().height(48.dp).testTag("trigger_recommender")
@@ -1359,15 +1364,18 @@ fun ScannerTab(onScanFinished: () -> Unit) {
 
     Button(
       onClick = {
-        scope.launch {
-          isScanning = true
-          simulatedResult = null
-          delay(2000)
-          isScanning = false
-          simulatedResult = itemsDiseases[scanCategoryIndex]
-          onScanFinished()
+        if (!isScanning) {
+          scope.launch {
+            isScanning = true
+            simulatedResult = null
+            delay(2000)
+            isScanning = false
+            simulatedResult = itemsDiseases[scanCategoryIndex]
+            onScanFinished()
+          }
         }
       },
+      enabled = !isScanning,
       colors = ButtonDefaults.buttonColors(containerColor = EcoPrimaryColor),
       shape = RoundedCornerShape(12.dp),
       modifier = Modifier.fillMaxWidth().height(50.dp).testTag("trigger_leaf_scan")
