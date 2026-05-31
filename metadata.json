@@ -1,0 +1,6 @@
+{
+  "name": "EcoFriend",
+  "description": "EcoFriend is an AI-powered smart plantation assistant for students, farmers, and gardening enthusiasts with interactive soil, water, climate, disease diagnosis, and voice chatbot features.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
